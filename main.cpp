@@ -1,8 +1,8 @@
 /*
- * Full Name:     [Your Name]
- * Student ID:    [Your NUID]
+ * Full Name:     Abdirahman Abanoor
+ * Student ID:    002046243
  * Course:        EECE 2140 - Computing Fundamentals for Engineers
- * Section:       [Your Section]
+ * Section:       05
  * Semester:      Fall 2026
  * Assignment:    Homework 4 - Parking Garage
  * Compilation:   g++ -std=c++11 main.cpp -o main
@@ -94,9 +94,15 @@ public:
     // Ticket 101: in 8:05, out 10:40 (155 min)
 
 private:
+
     // TODO A: Declare the private member variables that store a
     //         Vehicle's state, and declare any private helper member
     //         functions you add.
+    int ticket_;                 // Ticket and entry/exit times for this stay.
+    ClockTime entryTime_;
+    ClockTime exitTime_;
+    bool parked_;                // Changes only after a successful check-out.
+    int minutesParked_;          // Recorded duration; zero while still parked.
 };
 
 // ---------------------------------------------------------------------
@@ -125,6 +131,7 @@ public:
 private:
     // TODO B: Declare the private member variables that Car adds to
     //         Vehicle, and any private helper member functions you add.
+    bool electric_;
 };
 
 // ---------------------------------------------------------------------
@@ -147,6 +154,7 @@ public:
 private:
     // TODO C: Declare any private members that Motorcycle adds to
     //         Vehicle (it may need none).
+
 };
 
 // ---------------------------------------------------------------------
@@ -174,6 +182,7 @@ public:
 private:
     // TODO D: Declare the private member variables that Bicycle adds to
     //         Vehicle, and any private helper member functions you add.
+    int rack_;                   // Zero for a placeholder; otherwise 1 through BICYCLE_RACKS.
 };
 
 // ---------------------------------------------------------------------
@@ -477,8 +486,8 @@ int main()
 //               member is minute. The values are not checked.
 ClockTime makeTime(int hour, int minute)
 {
-    ClockTime placeholder = {-99, -99};
-    return placeholder;
+    ClockTime time = {hour, minute};
+    return time;
 }
 
 // TODO 2: isValidTime
@@ -488,7 +497,8 @@ ClockTime makeTime(int hour, int minute)
 //               otherwise.
 bool isValidTime(ClockTime t)
 {
-    return true;
+    return t.hour >= 0 && t.hour < HOURS_PER_DAY &&
+           t.minute >= 0 && t.minute < MINUTES_PER_HOUR;
 }
 
 // TODO 3: minutesBetween
@@ -498,7 +508,9 @@ bool isValidTime(ClockTime t)
 //               are the same time.
 int minutesBetween(ClockTime from, ClockTime to)
 {
-    return -99;
+    // Convert both times to minutes since midnight before subtracting.
+    return (to.hour * MINUTES_PER_HOUR + to.minute) -
+           (from.hour * MINUTES_PER_HOUR + from.minute);
 }
 
 // TODO 4: billedHours
@@ -509,7 +521,12 @@ int minutesBetween(ClockTime from, ClockTime to)
 //               minutes is 0 or negative.
 int billedHours(int minutes)
 {
-    return -99;
+    if (minutes <= 0)
+    {
+        return 0;
+    }
+    // Subtracting one makes exact-hour stays bill correctly under integer division.
+    return 1 + (minutes - 1) / MINUTES_PER_HOUR;
 }
 
 // ---- Vehicle --------------------------------------------------------
@@ -518,7 +535,7 @@ int billedHours(int minutes)
 //   Behavior:   Initializes a placeholder vehicle: ticket 0, entered at
 //               0:00, still parked, 0 minutes parked. Must delegate to
 //               Vehicle(int, ClockTime).
-Vehicle::Vehicle()
+Vehicle::Vehicle() : Vehicle(0, makeTime(0, 0))
 {
 }
 
@@ -533,14 +550,21 @@ Vehicle::Vehicle()
 //               as one line on the screen and then ends the whole program
 //               with exit status 1. Must call isValidTime.
 Vehicle::Vehicle(int ticket, ClockTime entry)
+    : ticket_(ticket), entryTime_(entry), exitTime_(makeTime(0, 0)),
+      parked_(true), minutesParked_(0)
 {
+    if (ticket < 0 || ticket > MAX_TICKET || !isValidTime(entry))
+    {
+        std::cout << "Invalid vehicle setup." << std::endl;
+        exit(1);
+    }
 }
 
 // TODO 7: getTicket
 //   Returns:    The vehicle's ticket number.
 int Vehicle::getTicket()
 {
-    return -99;
+    return ticket_;
 }
 
 // TODO 8: isParked
@@ -548,7 +572,7 @@ int Vehicle::getTicket()
 //               checkOut; false afterward.
 bool Vehicle::isParked()
 {
-    return false;
+    return parked_;
 }
 
 // TODO 9: checkOut(ClockTime exitTime)
@@ -563,7 +587,22 @@ bool Vehicle::isParked()
 //               more); otherwise -1.
 int Vehicle::checkOut(ClockTime exitTime)
 {
-    return -99;
+    if (!parked_ || !isValidTime(exitTime))
+    {
+        return -1;
+    }
+
+    int minutes = minutesBetween(entryTime_, exitTime);
+    if (minutes < 0)
+    {
+        return -1;
+    }
+
+    // Update the stay only after all check-out validation has passed.
+    exitTime_ = exitTime;
+    minutesParked_ = minutes;
+    parked_ = false;
+    return minutesParked_;
 }
 
 // TODO 10: checkOut(int hour, int minute)
@@ -572,7 +611,7 @@ int Vehicle::checkOut(ClockTime exitTime)
 //   Returns:    The value returned by checkOut(ClockTime).
 int Vehicle::checkOut(int hour, int minute)
 {
-    return -99;
+    return checkOut(makeTime(hour, minute));
 }
 
 // TODO 11: getMinutesParked
@@ -580,7 +619,7 @@ int Vehicle::checkOut(int hour, int minute)
 //               0 while the vehicle is still parked.
 int Vehicle::getMinutesParked()
 {
-    return -99;
+    return minutesParked_;
 }
 
 // TODO 12: output
@@ -597,6 +636,29 @@ int Vehicle::getMinutesParked()
 //               unless outs is cout.
 void Vehicle::output(std::ostream& outs)
 {
+    outs << "Ticket " << ticket_ << ": in "
+         << entryTime_.hour << ':';
+    // Preserve the required two-digit minute format without padding the hour.
+    if (entryTime_.minute < 10)
+    {
+        outs << '0';
+    }
+    outs << entryTime_.minute;
+
+    if (parked_)
+    {
+        outs << ", parked";
+    }
+    else
+    {
+        outs << ", out " << exitTime_.hour << ':';
+        if (exitTime_.minute < 10)
+        {
+            outs << '0';
+        }
+        outs << exitTime_.minute << " (" << minutesParked_ << " min)";
+    }
+    outs << '\n';
 }
 
 // ---- Car ------------------------------------------------------------
@@ -604,7 +666,7 @@ void Vehicle::output(std::ostream& outs)
 // TODO 13: Car default constructor
 //   Behavior:   Initializes a placeholder car, as Vehicle(), that is not
 //               electric.
-Car::Car()
+Car::Car() : Vehicle(), electric_(false)
 {
 }
 
@@ -612,7 +674,7 @@ Car::Car()
 //   Behavior:   Initializes a car that is not electric; ticket and entry
 //               are handled as in TODO 6. Must delegate to
 //               Car(int, ClockTime, bool).
-Car::Car(int ticket, ClockTime entry)
+Car::Car(int ticket, ClockTime entry) : Car(ticket, entry, false)
 {
 }
 
@@ -622,6 +684,7 @@ Car::Car(int ticket, ClockTime entry)
 //               electric is true. Must pass ticket and entry to
 //               Vehicle(int, ClockTime) in its initialization section.
 Car::Car(int ticket, ClockTime entry, bool electric)
+    : Vehicle(ticket, entry), electric_(electric)
 {
 }
 
@@ -629,7 +692,7 @@ Car::Car(int ticket, ClockTime entry, bool electric)
 //   Returns:    true if the car is electric; false otherwise.
 bool Car::isElectric()
 {
-    return false;
+    return electric_;
 }
 
 // TODO 17: Car::getFeeCents
@@ -641,14 +704,29 @@ bool Car::isElectric()
 //               billedHours.
 int Car::getFeeCents()
 {
-    return -99;
+    if (isParked())
+    {
+        return 0;
+    }
+
+    int fee = billedHours(getMinutesParked()) * CAR_RATE_CENTS;
+    // The charging fee is added after the parking-rate cap is applied.
+    if (fee > CAR_DAILY_MAX_CENTS)
+    {
+        fee = CAR_DAILY_MAX_CENTS;
+    }
+    if (electric_)
+    {
+        fee += CHARGING_FEE_CENTS;
+    }
+    return fee;
 }
 
 // ---- Motorcycle -----------------------------------------------------
 
 // TODO 18: Motorcycle default constructor
 //   Behavior:   Initializes a placeholder motorcycle, as Vehicle().
-Motorcycle::Motorcycle()
+Motorcycle::Motorcycle() : Vehicle()
 {
 }
 
@@ -656,7 +734,7 @@ Motorcycle::Motorcycle()
 //   Behavior:   Initializes a motorcycle with that ticket and entry time,
 //               handled as in TODO 6. Must pass ticket and entry to
 //               Vehicle(int, ClockTime) in its initialization section.
-Motorcycle::Motorcycle(int ticket, ClockTime entry)
+Motorcycle::Motorcycle(int ticket, ClockTime entry) : Vehicle(ticket, entry)
 {
 }
 
@@ -667,7 +745,17 @@ Motorcycle::Motorcycle(int ticket, ClockTime entry)
 //               billedHours.
 int Motorcycle::getFeeCents()
 {
-    return -99;
+    if (isParked())
+    {
+        return 0;
+    }
+
+    int fee = billedHours(getMinutesParked()) * MOTORCYCLE_RATE_CENTS;
+    if (fee > MOTORCYCLE_DAILY_MAX_CENTS)
+    {
+        fee = MOTORCYCLE_DAILY_MAX_CENTS;
+    }
+    return fee;
 }
 
 // ---- Bicycle --------------------------------------------------------
@@ -675,7 +763,7 @@ int Motorcycle::getFeeCents()
 // TODO 21: Bicycle default constructor
 //   Behavior:   Initializes a placeholder bicycle, as Vehicle(), with
 //               rack number 0.
-Bicycle::Bicycle()
+Bicycle::Bicycle() : Vehicle(), rack_(0)
 {
 }
 
@@ -688,14 +776,20 @@ Bicycle::Bicycle()
 //               with exit status 1. Must pass ticket and entry to
 //               Vehicle(int, ClockTime) in its initialization section.
 Bicycle::Bicycle(int ticket, ClockTime entry, int rack)
+    : Vehicle(ticket, entry), rack_(rack)
 {
+    if (rack < 1 || rack > BICYCLE_RACKS)
+    {
+        std::cout << "Invalid vehicle setup." << std::endl;
+        exit(1);
+    }
 }
 
 // TODO 23: getRack
 //   Returns:    The bicycle's rack number (0 for a placeholder).
 int Bicycle::getRack()
 {
-    return -99;
+    return rack_;
 }
 
 // TODO 24: Bicycle::getFeeCents
@@ -705,5 +799,17 @@ int Bicycle::getRack()
 //               hour. Must call billedHours.
 int Bicycle::getFeeCents()
 {
-    return -99;
+    if (isParked())
+    {
+        return 0;
+    }
+
+    int hours = billedHours(getMinutesParked());
+    int chargeableHours = hours - BICYCLE_FREE_HOURS;
+    // A stay within the free allowance must not produce a negative charge.
+    if (chargeableHours < 0)
+    {
+        chargeableHours = 0;
+    }
+    return chargeableHours * BICYCLE_RATE_CENTS;
 }
