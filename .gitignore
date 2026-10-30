@@ -1,0 +1,19 @@
+# Compiled binaries
+*.o
+*.exe
+*.out
+main
+
+# Visual Studio
+.vs/
+Debug/
+Release/
+x64/
+*.vcxproj.user
+
+# CLion
+.idea/
+cmake-build-*/
+
+# macOS
+.DS_Store
